@@ -4,10 +4,13 @@ import torch
 import argparse
 import random
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import sys
+sys.path.append('/mnt/ESFT')
 from utils import get_formatted_input_and_target
 import torch.multiprocessing as mp
 from itertools import accumulate
 from accelerate import dispatch_model
+from pathos.multiprocessing import ProcessingPool as Pool
 
 
 def infer_auto_device_map(model, pp_splits, visible_devices):
@@ -51,7 +54,9 @@ def eval_expert(rank, args, model, dataset):
         print(f"Error in process {rank}: {e}", flush=True)
         raise
 
-
+def eval_expert_wrapper(args):
+    rank, args, model, dataset = args
+    return eval_expert(rank, args, model, dataset)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a model with adapters on a specified dataset.")
     parser.add_argument("--eval_dataset", type=str, required=True, help="Name of the evaluation dataset")
@@ -75,4 +80,9 @@ if __name__ == "__main__":
 
 
     print("Start Evaluating...")
-    mp.spawn(eval_expert, args=(args, model, dataset), nprocs=args.world_size, join=True)
+    pool = Pool(args.world_size)
+    args_list = [(rank, args, model, dataset) for rank in range(args.world_size)]
+    results = pool.map(eval_expert_wrapper, args_list)
+    pool.close()
+    pool.join()
+    #mp.spawn(eval_expert, args=(args, model, dataset), nprocs=args.world_size, join=True)

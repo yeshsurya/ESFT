@@ -5,7 +5,9 @@ from torch import device
 from benchmarks import *
 import os
 from esft import load_base_model, add_adapter
-import torch.multiprocessing as mp
+#import torch.multiprocessing as mp
+#import pathos.multiprocessing as mp
+from pathos.multiprocessing import ProcessingPool as Pool
 from itertools import accumulate
 from accelerate import dispatch_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -63,6 +65,12 @@ def eval_model(rank, args, model, dataset):
         print(f"Error in process {rank}: {e}", flush=True)
         raise
 
+
+def eval_model_wrapper(args):
+    rank, args, model, dataset = args
+    return eval_model(rank, args, model, dataset)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a model with adapters on a specified dataset.")
     parser.add_argument("--eval_dataset", type=str, required=True, help="Name of the evaluation dataset")
@@ -89,4 +97,10 @@ if __name__ == "__main__":
     model = add_adapter(model, args.adapter_dir, return_original_states=False)
 
     print("Start Evaluating...")
-    mp.spawn(eval_model, args=(args, model, dataset), nprocs=args.world_size, join=True)
+    #mp.spawn(eval_model, args=(args, model, dataset), nprocs=args.world_size, join=True)
+    pool = Pool(args.world_size)
+    args_list = [(rank, args, model, dataset) for rank in range(args.world_size)]
+    results = pool.map(eval_model_wrapper, args_list)
+    #results = pool.map(eval_model, [(args, model, dataset)])
+    pool.close()
+    pool.join()

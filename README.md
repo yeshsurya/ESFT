@@ -68,6 +68,7 @@ python scripts/expert/get_expert_scores.py \
 This script generates the configuration to convert a MoE model with only task-relevant tasks trained based on evaluation scores.
 **Usage:**
 ```bash
+python scripts/expert/generate_expert_config.py --eval_dataset=translation --expert_scores_dir=results/expert_scores/translation/ --output_path=results/expert_configs.json --score_function=token --top_p=0.2
 python scripts/expert/generate_expert_config.py \
     --eval_datasets=intent,summary,law,translation \
     --expert_scores_dir=results/expert_scores \
